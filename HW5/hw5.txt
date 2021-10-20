@@ -1,0 +1,323 @@
+Part 1: UDP
+
+1. 
+
+a) The two system calls that are used to create and prepare a UDP client socket for reading 
+and writing are first, socket() and second connect(). Socket creates a socket descriptor from
+ the domain, type, and protocol that was specified using the getaddrinfo() method from the 
+parameters passed in from the command line. Connect then takes the socket descriptor 
+returned from the socket method as well as the socket address and length of the address 
+and attempts to establish a connection with a server. 
+
+b) If the latter system call to connect() were not used, the client could still function by 
+replacing the connect method with the sendto() system call. Sento or 
+ssize_t sendto(int sockfd, const void *buf, size_t len, int flags, 
+const struct sockaddr *dest_addr, socklen_t addrlen) could be used to send a message to 
+another socket where dest_addr is a valid destination address. If you do not use the 
+connect() method to set up the socket, you could not use the send() method, but you could 
+use the sendto() method instead. 
+
+2. jfairba1@utah:~/cs324/HW5/sockets$ ./server -4 1055                                                      
+Waiting for data on port 1055...      
+
+3.
+a) jfairba1@utah:~/cs324/HW5/sockets$ ss -l -u -p -n "sport = :1055"
+
+b)State       Recv-Q      Send-Q           Local Address:Port           Peer Address:Port     Process
+  UNCONN      0           0                      0.0.0.0:1055                0.0.0.0:*         users:(("server",pid=3801988,fd=3))
+
+c) When I ran the command, I can see the port 1055 which my server is running on and see that
+it is a listening port, and that it is running UDP because I ran the command with the -u
+option which only shows the services on udp and -l which only shows the one’s listening. 
+Also, the output says UCONN as the state, meaning that the server is unconnected as it has 
+not yet been connected to the client. Recv-q and send-q refer to the number of bytes that have been sent 
+and received from the server. Because the server is not yet connected, both of those counts show up 
+as 0. Peer Address:Port would display the address and port number of a connected client, but 
+because there is no connected client this section also displays as 0.0.0.0.*. Last is Process 
+section which displays the type of the process running, “server”, and the pid of the process, “3801988”.
+
+4. 
+a) jfairba1@iowa:~/cs324/HW5/sockets$ ./client -4 utah 1055 foo bar baz catvideo
+
+b) Sent 4 bytes to server
+Received 4 bytes: foo
+Sent 4 bytes to server
+Received 4 bytes: bar
+Sent 4 bytes to server
+Received 4 bytes: baz
+Sent 9 bytes to server
+Received 9 bytes: catvideo
+
+5.
+a) The client makes 4 calls to write, this can be seen because the client sends 4 byte to 
+the server three times followed by sending 9 bytes. In the code for the client, the client
+only prints out the "Sent x bytes to server" message when it has called write. Hence, because
+in the output there are 4 Sent x bytes to server messages, this means that the client calls
+write 4 times.
+
+b) Assuming no network loss, the kernel of the server-side process before the server calls 
+recvfrom() the second time should have received all the datagrams sent from the client. This
+means that the kernel should have received 4 datagrams consisting of the three 4 bytes, and 
+1 9 byte messages sent from the client. This means it should have received 21 bytes in total.
+
+c) 4 calls to recvfrom() are required for the server process to get all the datagrams/bytes
+that were sent. This can be identified because the server prints out the statement 
+"Received x bytes from iowa.cs.byu.edu:49253" each time that the recvfrom() method is called.
+In my output, this statement was printed 4 times, 3 for the 4 byte messages and 1 for the 9 byte
+message. Hence, recvfrom() was called 4 times. 
+
+d) The inefficiency is that it the server reads and processes a datagram at a time, even if there
+are additional pending datagrams in the socket. This is inefficient because the server could instead
+read all the data that has been received instead of doing it one datagram at a time. The cause
+of this inefficiency is the fact that this is a udp client socket. The man page for udp says that in this
+type of socket, "All receive operations return only one packet." meaning that the recvfrom() will only
+receive one packet at a time, thus it must take 4 calls to receive all the data from the client. 
+
+Part 2: TCP
+
+6. The role of the original socket has changed significantly with the changes I have made. In 
+the UDP code, the file descriptor returned by the socket function was the file descriptor use 
+in the recvfrom() method, and was the file descriptor ultimately used to receive the data from 
+the client. Conversely, In the TCP version of the server, the socket file descriptor is used in 
+the listen function to be transformed from an active socket to a listening socket that can accept
+connection requests from clients. That is then passed into the accept() function that waits for a 
+connection request from a client to arrive on that listening descriptor  and returns a connected 
+descriptor that can be used to communicate with the client using Unix I/O functions. Hence the new 
+connected descriptor is used in the recv() function and not the socket descriptor. Hence, the role 
+of the original socket changed significantly as if was used to set up the connection and create a 
+new descriptor to be used for writing and reading, while in UDP it was the sole socket used for that
+purpose. 
+
+7. The difference between calling connect now as opposed to calling connect with a UDP socket is that the
+connect system call will actually create a connection with the server and the function will return a 
+connection file descriptor that can then be used for reading and writing to the socket. In TCP, the server
+uses the accept function which will return the connection file descriptor when the client calls connect. This
+is different from UDP because in UDP, the connect system call does not actually form a connection with the server,
+but conversely just sets up the client to send datagrams to the server which does not have the accept system call.
+Hence, in UDP the connect() system call is used only to send datagrams, not form a connection with the server. This is
+why in question 1b we sould use a call to sendto() instead of connect to accomplish the same function of UDP.
+Hence, the primary difference between the call to connect() now is that it will actually form a connection to the server,
+and return a connected file descriptor that can be used for reading and writing, while the call to connect in UDP is
+used only to send datagrams, not to actaully form a connection between client and server.
+
+8. 
+Part a) jfairba1@utah:~/cs324/HW5/sockets$ ss -l -t -p -n "sport = :1060"
+
+Part b)
+State       Recv-Q      Send-Q           Local Address:Port           Peer Address:Port     Process
+LISTEN      0           100                    0.0.0.0:1060                0.0.0.0:*         users:(("server",pid=729030,fd=3))
+
+Part c) When I ran the command, I can see the port 1060 which my server is running on and see that
+it is a listening port, and that it is running TCP because I ran the command with the -t
+option which only shows the services on tcp and -l which only shows the one’s listening. 
+Also, the output says LISTEN as the state, meaning that the server is listening and waiting for a client
+to use the connect() system call in order to create a connection. Recv-q and send-q refer to 
+the number of bytes that have yet to be sent and received from the server. Because the server is not yet connected, recv-q
+shows up as 0 because the server has not yet received any data from the client because it is unconnected.
+Send-Q on the other hand shows up as 100 bytes. This is becuase send-q refers to the number of bytes that the server
+has yet to send to the client. Becuase the server is unconnected, it has some bytes of data to send to client upon 
+forming a connection. Hence, those bytes of data show up in the send-q column because the server is unconnected and 
+waiting to connect and then send those bytes of information to the client. Peer Address:Port would display the address and
+port number of a connected client, but because there is no connected client this section also displays as 0.0.0.0.*. 
+Last is Process section which displays the type of the process running, “server”, and the pid of the process, “3801988”.
+
+9.
+Part a) jfairba1@hawaii:~/cs324/HW5/sockets$ ./client -4 utah 1060 foo bar baz catvideo
+
+Part b)
+Sent 4 bytes to server
+Received 4 bytes: foo
+Sent 4 bytes to server
+Received 4 bytes: bar
+Sent 4 bytes to server
+Received 4 bytes: baz
+Sent 9 bytes to server
+Received 9 bytes: catvideo
+
+10. 
+Part a) jfairba1@utah:~/cs324/HW5/sockets$ ss -t -p -n "sport = :1060"
+
+Part b)
+State     Recv-Q      Send-Q           Local Address:Port            Peer Address:Port      Process
+ESTAB     0           0                192.168.2.147:1060           192.168.2.102:35948      users:(("server",pid=2080574,fd=4))
+
+Part c)
+When I ran the command, I can see the port 1060 which my server is running on and see that
+it is an active port, and that it is running TCP because I ran the command with the -t
+option which only shows the services on tcp and I did not put -l which only shows the one’s listening. 
+Also, the output says ESTAB as the state, meaning that the server is established and connected to the client.
+Recv-q and send-q refer to the number of bytes that have yet to be sent and received from the server. 
+Because the server connected, recv-q shows up as 0 because the server has already received all the data from the client.
+Send-Q on the other hand shows up as 0 bytes as well. This is becuase send-q refers to the number of bytes that the server
+has yet to send to the client. Becuase the server is connected, it has sent the bytes of data to the client upon 
+forming a connection. Peer Address:Port displays the address and port number of a connected client, 
+and because the server is connected to the client, this section shows up as "192.168.2.102:35948" which refers to the
+address and port of the client. This can be verified because in the server output, the server said,
+"Received 9 bytes from bigbend.cs.byu.edu:35948" and that port number "35948" lines up with the port under Peer Address:Port
+of "35648". The address "192.168.2.102" refers to the address of "bigbend.cs.byu.edu". The Local Address:Port sectino refers
+to the address and port of ther server. As expected the server is running on port "1060" and its address refers to
+utah.cs.byu.edu and is "192.168.2.147". Last is the Process section which displays the type of the process running, 
+“server”, which is expected, and the pid of the process, “2080574”. fd refers to the number of filedescriptors. This number 
+is 4 as opposed to 3 before the server was connected because when the server connects, it creates a connectfd connected file
+descriptor that is used to communicate with the client. Hence, the number of fd is greater in the connected server than 
+the unconnected server.
+
+11.
+Part a) jfairba1@utah:~/cs324/HW5/sockets$ ss -t -p -n "sport = :1060"
+
+Part b)
+State      Recv-Q      Send-Q           Local Address:Port           Peer Address:Port     Process
+
+Part c) As can be identified in Part b, when I did the command to find active tcp sockets using the correct port
+number of 1060, the ss command had no output. This is becuase when the client stops sending data, the server will go
+back into a listening state waiting to be connected by another client. In our server, we also search for when 
+no bytes of data was received, and then the server closes. So, in this case the server after dissconnected from the client
+when the client finished executing, the server shut down when it did not receive any more data form the client. However,
+a different TCP server would go back into a listening tate, waiting to connect to another client and thus it would not
+show up when the ss command is used to display only active, non listening sockets. 
+
+12.
+Part a) The client makes 4 calls to write, this can be seen because the client sends 4 byte to 
+the server three times followed by sending 9 bytes. In the code for the client, the client
+only prints out the "Sent x bytes to server" message when it has called write. Hence, because
+in the output there are 4 Sent x bytes to server messages, this means that the client calls
+write 4 times.
+
+Part b) Assuming no network loss, the kernel of the server-side process before the server calls 
+recvfrom() the second time should have received all the datagrams sent from the client. This
+means that the kernel should have received 4 datagrams consisting of the three 4 bytes, and 
+1 9 byte messages sent from the client. This means it should have received 21 bytes in total.
+
+Part c) 2 calls to recv() are required for the server process to get all the datagrams/bytes
+that were sent. This can be identified because the server prints out the statement 
+"Received x bytes from bigbend.cs.byu.edu:37074" each time that the recv() method is called.
+In my output, this statement was printed 2 times, once for the first 4 byte messages and another 
+for the remaining 17 bytes. Hence, recv() was called 2 times and the server's output was
+Waiting for data on port 1060...                                                                        
+Received 4 bytes from bigbend.cs.byu.edu:37074                                                           
+Received 17 bytes from bigbend.cs.byu.edu:37074   
+
+Part d) This differs from what I observed in question 5 because in the UDP socket and server, the
+server had to make 4 calls to recvfrom() in order to receive all the data from the client. I observed
+that this was a seeming inefficiency because the server has received all the datagrams by the time the second
+recvfrom() method was called, yet it needed to call recvfrom() 4 times in order to process all the data.
+However, in the TCP socket and server, the server only had to call recv() twice in order to receive all the
+data. This is more effecient than the UDP socket, and it also is interesting in demonstrating how UDP and TCP work
+differently. The reason the TCP socket was able to do this is because of the difference between the two connections.
+TCP forms an actual connection with the server while UDP does not in the same manner. Hence, TCP functions 
+differentely that UDP and thus handles the sent data in a different way.
+
+
+Part 3: Client Modification
+
+13.
+Part a)
+jfairba1@utah:~/cs324/HW5/sockets$ nc -l 1060 | sha1sum                                                  
+0ef39a3f241cdd6552ad131e01afa9171b3dab8d  
+
+Part b)
+jfairba1@everglades:~/cs324/HW5/sockets$ ./client utah 1060 < alpha.txt
+
+
+14.jfairba1@everglades:~/cs324/HW5/sockets$  ./client www-notls.imaal.byu.edu 80 < http-bestill.txt > bestill.txt
+
+HTTP/1.1 200 OK
+Date: Wed, 20 Oct 2021 03:59:56 GMT
+Server: Apache/2.4.38 (Debian)
+Content-length: 809
+Vary: Accept-Encoding
+Connection: close
+Content-Type: text/plain
+
+
+1. Be still, my soul: The Lord is on thy side;
+With patience bear thy cross of grief or pain.
+Leave to thy God to order and provide;
+In ev'ry change he faithful will remain.
+Be still, my soul: Thy best, thy heav'nly Friend
+Thru thorny ways leads to a joyful end.
+
+2. Be still, my soul: Thy God doth undertake
+To guide the future as he has the past.
+Thy hope, thy confidence let nothing shake;
+All now mysterious shall be bright at last.
+Be still, my soul: The waves and winds still know
+His voice who ruled them while he dwelt below.
+
+3. Be still, my soul: The hour is hast'ning on
+When we shall be forever with the Lord,
+When disappointment, grief, and fear are gone,
+Sorrow forgot, love's purest joys restored.
+Be still, my soul: When change and tears are past,
+All safe and blessed we shall meet at last.
+
+15.
+jfairba1@everglades:~/cs324/HW5/sockets$  ./client www-notls.imaal.byu.edu 80 < http-socket.txt | ./strip_http.py > socket.jpg
+
+
+Part 4: Review Questions
+
+16. When you call read() (or recv()) on an open socket (UDP or TCP), and there is no data (datagrams or bytes) in the buffer 
+to be read, according to the man pages of read() and recv(), "If data is not available for the socket socket, and socket is 
+in blocking mode, the recv() (or read()) call blocks the caller until data arrives.
+If data is not available and socket is in nonblocking mode, recv() (or read()) returns a -1 and sets the error code to EWOULDBLOCK".
+This means, that if read of recv is called and there is no data in the buffer to be read, then these method calls may block until
+data arrives for the method to read. Or, the calls may also return -1 and set the EWOULDBLOCK error code. In our server, I started
+the server and connected to the client without actaully sending any data, and the server exited because its nread variable was 0
+meaning that upon the call to revc(), the server did not receive any data. Hence, these calls can also read or recv nothing and
+set the varibale to 0 and continue looping waiting for data to arrive. Hence, When you call read() (or recv()) on an open socket 
+(UDP or TCP), and there is no data (datagrams or bytes) in the buffer to be read, the call can block, return 0, or return -1
+with an error depending on what you want it to do.
+
+17. When you call read() (or recv()) on an open socket, and you specify a length that is more the number of bytes ready to be
+read in the buffer (TCP) or the length of the next datagram (UDP) then the socket will get all the of the bytes available and 
+return the number of bytes that were read. A perfect example of this was in the code for this homework assignment. In the UDP
+socket and in the TDP socket, the buffer was set to accept up to 500 bytes from the client, however in the case of the UDP socket,
+the most it received was 9 and in the TCP socket the most it received was 17 bytes. The server was able to still read and use revc()
+to get the bytes despite the fact that it had a specified a length that was 500, much more thn the number of bytes read to be read.
+Hence, when you call read() (or recv()) on an open socket, and you specify a length that is more the number of bytes ready to be
+read in the buffer (TCP) or the length of the next datagram (UDP) then the socket will get all the avaible bytess that it can, and 
+then return the number of bytes that it was able to get. 
+
+18. When you call read() (or recv()) on an open UDP socket, and you specify a length that is less than the length of the next datagram,
+then the datagram socket will discard any excess bytes.
+This can be identified by the server and client code we were given. I modified the server to only receive
+up to 5 bytes in the buffer and then used the same command for the client, " ./client -4 utah 1060 foo bar baz catvideo"
+to send 4 bytes three times, then the server should receive the 9 bytes. However, the server output was:
+Waiting for data on port 1060...                                                                         
+Received 4 bytes from bigbend.cs.byu.edu:37744
+Received 4 bytes from bigbend.cs.byu.edu:37744   
+Received 4 bytes from bigbend.cs.byu.edu:37744                                                             
+Received 5 bytes from bigbend.cs.byu.edu:37744      
+As can be seen, the server was only able to receive the first 5 bytes of the 9 bytes that could be received from recv().
+Hence, the socket discarded the excess bytes and was only able to receive 5 bytes of the 9 byte datagram. Thus, When you call read() (or recv()) 
+on an open on an open UDP socket, and you specify a length that is less than the length of the next datagram,
+then the datagram socket will discard any excess bytes.
+
+19. When you call read() (or recv()) on an open TCP socket, and you specify a length that is less than the
+number of bytes ready to be read in the buffer, then the datagram socket will discard any excess bytes.
+This can be identified by the server and client code we were given. I modified the server to only receive
+up to 5 bytes in the buffer and then used the same command for the client, " ./client -4 utah 1060 foo bar baz catvideo"
+to send 4 bytes, then the server hould receive the rest of the 17 bytes. However, the server output was:
+Waiting for data on port 1060...                                                                         
+Received 4 bytes from bigbend.cs.byu.edu:37744                                                           
+Received 5 bytes from bigbend.cs.byu.edu:37744      
+As can be seen, the server was only able to receive the first 5 bytes of the 17 bytes that could be received from recv().
+Hence, the socket discarded the excess bytes and was only able to receive 5 bytes. Thus, When you call read() (or recv()) 
+on an open TCP socket, and you specify a length that is less than the number of bytes ready to be read in the buffer,
+then the datagram socket will discard any excess bytes. This is slightly different from the UDP socket because in the UDP socket,
+the socket receives datagrams one at a time while the TCP socket can receive the data all at once. Thus is the TCP socket, 
+more data was disgarded becuase 17 bytes were available but only 5 were received. In the UDP socket on the other hand, 
+because each datagram was received seperately, the socket was able to receive 5 bytes of data from each datagram instead of just
+5 bytes from the total. Hence, the UDP socket did receive more data when the buffer was less than needed as it discarded data from 
+each datagram while the TCP datgram discarded anything that was left over that had already been received.
+
+
+
+
+
+
+
+
+
+
